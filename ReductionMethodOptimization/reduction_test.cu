@@ -1,7 +1,5 @@
-#include <windows.h>
 #include <stdio.h>
 #include "book.h"
-#include "utils.h"
 #include "reduction_methods.h"
 #include "finalReductionMethod.h"
 

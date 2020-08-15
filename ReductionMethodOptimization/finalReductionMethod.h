@@ -53,15 +53,19 @@ void test_final(int num, int bs, int reduce_gs=1){
 	HANDLE_ERROR(cudaMemcpy(g_idata, i_data, num*sizeof(int), cudaMemcpyHostToDevice));
 	
 	//GPU calculate:
-	double dt;
 	cudaThreadSynchronize();
-	warmup();
-	dt = get_time();
+	cudaEvent_t start, stop;
+	HANDLE_ERROR( cudaEventCreate( &start ) );
+	HANDLE_ERROR( cudaEventCreate( &stop ) );
+	HANDLE_ERROR( cudaEventRecord( start, 0 ) );
 	
 	reduction_method<<<gs, bs, bs*sizeof(int)>>>(g_idata, g_odata, num);
 	
 	cudaThreadSynchronize();
-	dt = get_time() - dt;
+	HANDLE_ERROR( cudaEventRecord( stop, 0 ) );
+ 	HANDLE_ERROR( cudaEventSynchronize( stop ) );
+	float dt;
+	HANDLE_ERROR( cudaEventElapsedTime( &dt, start, stop ) );
 	
 	//CPU calculate:
 	HANDLE_ERROR(cudaMemcpy(o_data, g_odata, gs*sizeof(int), cudaMemcpyDeviceToHost));
@@ -69,8 +73,8 @@ void test_final(int num, int bs, int reduce_gs=1){
 	for(int i=0;i<num;i++)r2 += i_data[i];
 	//show result:
 	printf("GPU result: %d (actual: %d)  correct: %d\n", r1, r2, r1==r2);
-	printf("time consuming: %.3lfms\n", 1000*dt);
-	printf("bandwidth: %.2f GB/s\n", num/dt*4/1e9);
+	printf("time consuming: %.3lfms\n", dt);
+	printf("bandwidth: %.2f GB/s\n", num / dt * 4/1e9 * 1000);
 	
 	//
 	cudaFree(g_idata);
