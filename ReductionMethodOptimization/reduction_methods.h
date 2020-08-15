@@ -191,9 +191,6 @@ void test(int num, int bs, int reduce_gs=1){
 	cudaThreadSynchronize();
 	dt = get_time() - dt;
 	
-	unsigned long long dclock = clock();
-	
-	
 	//CPU calculate:
 	HANDLE_ERROR(cudaMemcpy(o_data, g_odata, gs*sizeof(int), cudaMemcpyDeviceToHost));
 	for(int i=0;i<gs;i++)r1 += o_data[i];
