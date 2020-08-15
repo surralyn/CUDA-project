@@ -16,35 +16,35 @@ Results on Geforce GTX 1660Ti:
 
 Method 1 ---- Interleaved Addressing with warp divergence:  
 GPU result: 268435557 (actual: 268435557)  correct: 1  
-time consuming: 43.007ms  
-bandwidth: 24.97 GB/s  
+time consuming: 43.021ms  
+bandwidth: 24.96 GB/s  
 
 Method 2 ---- Interleaved Addressing with bank conflict:  
 GPU result: 268435557 (actual: 268435557)  correct: 1  
-time consuming: 25.284ms  
-bandwidth: 42.47 GB/s  
+time consuming: 30.175ms  
+bandwidth: 35.58 GB/s  
 
 Method 3 ---- Sequential Addressing:  
 GPU result: 268435557 (actual: 268435557)  correct: 1  
-time consuming: 26.768ms  
-bandwidth: 40.11 GB/s  
+time consuming: 29.002ms  
+bandwidth: 37.02 GB/s  
 
 Method 4 ---- First Add During Load:  
 GPU result: 268435557 (actual: 268435557)  correct: 1  
-time consuming: 13.908ms  
-bandwidth: 77.21 GB/s  
+time consuming: 13.913ms  
+bandwidth: 77.17 GB/s  
 
 Method 5 ---- Unroll the Last Warp:  
 GPU result: 268435557 (actual: 268435557)  correct: 1  
-time consuming: 9.562ms  
-bandwidth: 112.29 GB/s  
+time consuming: 10.498ms  
+bandwidth: 102.28 GB/s  
 
 Method 6 ---- Completely Unrolled:  
 GPU result: 268435557 (actual: 268435557)  correct: 1  
-time consuming: 8.308ms  
-bandwidth: 129.24 GB/s  
+time consuming: 7.723ms  
+bandwidth: 139.03 GB/s  
 
 Method final ---- Multiple Adds:  
 GPU result: 268435557 (actual: 268435557)  correct: 1  
-time consuming: 5.506ms  
-bandwidth: 195.00 GB/s  
+time consuming: 4.972ms  
+bandwidth: 215.97 GB/s  
