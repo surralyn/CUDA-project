@@ -66,6 +66,8 @@ void test_final(int num, int bs, int reduce_gs=1){
  	HANDLE_ERROR( cudaEventSynchronize( stop ) );
 	float dt;
 	HANDLE_ERROR( cudaEventElapsedTime( &dt, start, stop ) );
+	HANDLE_ERROR( cudaEventDestroy( start ) );
+ 	HANDLE_ERROR( cudaEventDestroy( stop ) );
 	
 	//CPU calculate:
 	HANDLE_ERROR(cudaMemcpy(o_data, g_odata, gs*sizeof(int), cudaMemcpyDeviceToHost));

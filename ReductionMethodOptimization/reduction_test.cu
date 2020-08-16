@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "book.h"
+#include "../common/book.h"
 #include "reduction_methods.h"
 #include "finalReductionMethod.h"
 

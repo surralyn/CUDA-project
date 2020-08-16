@@ -4,8 +4,7 @@ This is a project based on https://developer.download.nvidia.cn/assets/cuda/file
 
 ## To Run a Demo
 
-nvcc reduction_test.cu -o reduction_test
-./reduction_test
+nvcc reduction_test.cu -o reduction_test && reduction_test  
 
 control parameters in "reduction_test.cu":
 * num : length of the vector (defaut: (1<<28) + 101)
