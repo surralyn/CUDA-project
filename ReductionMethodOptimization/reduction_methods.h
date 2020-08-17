@@ -162,9 +162,46 @@ __global__ void reduce6(int *g_idata, int *g_odata) {
 	if(tid == 0)g_odata[blockIdx.x] = sdata[0];
 }
 
-template <void(*reduction_method)(int *g_idata, int *g_odata, int num)> void test(int num, int bs, int reduce_gs=1){}
-template <void(*reduction_method)(int *g_idata, int *g_odata)>
-void test(int num, int bs, int reduce_gs=1){
+template <unsigned int blockSize>
+__global__ void reduce_final(int *g_idata, int *g_odata, int num) {
+	extern __shared__ int sdata[];
+	
+	// each thread loads one element from global to shared mem
+	unsigned int tid = threadIdx.x;
+	unsigned int i = blockIdx.x * blockDim.x + tid;
+	unsigned int gridSize = blockDim.x * gridDim.x;
+	sdata[tid] = 0;
+	while(i < num){
+		sdata[tid] += g_idata[i];
+		i += gridSize;
+	}
+	__syncthreads();
+	
+	// do reduction in shared mem
+	if(blockSize >= 1024){
+		if(tid < 512)sdata[tid] += sdata[tid + 512];
+		__syncthreads();
+	}
+	if(blockSize >= 512){
+		if(tid < 256)sdata[tid] += sdata[tid + 256];
+		__syncthreads();
+	}
+	if(blockSize >= 256){
+		if(tid < 128)sdata[tid] += sdata[tid + 128];
+		__syncthreads();
+	}
+	if(blockSize >= 128){
+		if(tid < 64)sdata[tid] += sdata[tid + 64];
+		__syncthreads();
+	}
+	
+	if(tid < 32)totalWarpReduce<blockSize>(sdata, tid);
+	// write result for this block to global mem
+	if(tid == 0)g_odata[blockIdx.x] = sdata[0];
+}
+
+
+void test(int num, int bs, void (*reduction_method)(int*, int*), int reduce_gs=1, void(*reduction_method_final)(int*, int*, int)=NULL){
 	int gs = (num + bs - 1) / bs;
 	gs = (gs + reduce_gs - 1) / reduce_gs;
 	int aloc_size = gs * reduce_gs * bs;
@@ -187,7 +224,8 @@ void test(int num, int bs, int reduce_gs=1){
 	HANDLE_ERROR( cudaEventCreate( &stop ) );
 	HANDLE_ERROR( cudaEventRecord( start, 0 ) );
 	
-	reduction_method<<<gs, bs, bs*sizeof(int)>>>(g_idata, g_odata);
+	if(reduction_method != NULL)reduction_method<<<gs, bs, bs*sizeof(int)>>>(g_idata, g_odata);
+	else if(reduction_method_final != NULL)reduction_method_final<<<gs, bs, bs*sizeof(int)>>>(g_idata, g_odata, num);
 	
 	cudaThreadSynchronize();
 	HANDLE_ERROR( cudaEventRecord( stop, 0 ) );
