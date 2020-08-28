@@ -1,13 +1,12 @@
 #include <stdio.h>
 #include <time.h>
-#include "nms_kernel.cu"
 #include "nms_part_gpu.cu"
 
 
 int main(){
     FILE *fp = NULL;
     fp = fopen("./data/input.txt", "r");
-    int *keep_out=NULL, *num_out=NULL, boxes_num, boxes_dim=5, device_id=0;
+    int *keep_out=NULL, *num_out=NULL, boxes_num;
     float* boxes_host, *pure_boxes_host, dt;
     float nms_overlap_thresh;
     fscanf(fp, "%d %f", &boxes_num, &nms_overlap_thresh);
@@ -23,7 +22,7 @@ int main(){
 	HANDLE_ERROR( cudaEventCreate( &start ) );
     HANDLE_ERROR( cudaEventCreate( &stop ) );
     HANDLE_ERROR( cudaEventRecord( start, 0 ) );
-    _nms(keep_out, num_out, boxes_host, boxes_num, boxes_dim, nms_overlap_thresh, device_id);
+    _nms(keep_out, num_out, boxes_host, boxes_num, nms_overlap_thresh);
     HANDLE_ERROR( cudaEventRecord( stop, 0 ) );
     HANDLE_ERROR( cudaEventSynchronize( stop ) );
     HANDLE_ERROR( cudaEventElapsedTime( &dt, start, stop ) );
@@ -32,7 +31,7 @@ int main(){
     printf("Remaining box num: %d\n", *num_out);
 
     HANDLE_ERROR( cudaEventRecord( start, 0 ) );
-    int k=nms_part_gpu(pure_boxes_host, nms_overlap_thresh, boxes_num);
+    int k=nms_part_gpu(boxes_host, nms_overlap_thresh, boxes_num);
     HANDLE_ERROR( cudaEventRecord( stop, 0 ) );
     HANDLE_ERROR( cudaEventSynchronize( stop ) );
     HANDLE_ERROR( cudaEventElapsedTime( &dt, start, stop ) );

@@ -6,7 +6,7 @@ import numpy as np
 parser = argparse.ArgumentParser()
 parser.add_argument("-e", "--expo", type=int, default=16)
 parser.add_argument("-b", "--bias", type=int, default=0)
-parser.add_argument("-th", "--threshold", type=float, default=0.3)
+parser.add_argument("-th", "--threshold", type=float, default=0.1)
 parser.add_argument("--height", type=float, default=1080)
 parser.add_argument("--weight", type=float, default=1920)
 args = parser.parse_args()
