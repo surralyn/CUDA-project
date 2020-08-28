@@ -36,7 +36,7 @@ __global__ void nms_kernel(const int n_boxes, const float nms_overlap_thresh,
   const int row_start = blockIdx.y;
   const int col_start = blockIdx.x;
 
-  // if (row_start > col_start) return;
+  if (row_start > col_start) return;
 
   const int row_size =
         min(n_boxes - row_start * threadsPerBlock, threadsPerBlock);
@@ -72,25 +72,13 @@ __global__ void nms_kernel(const int n_boxes, const float nms_overlap_thresh,
         t |= 1ULL << i;
       }
     }
-    const int col_blocks = DIVUP(n_boxes, threadsPerBlock);
-    dev_mask[cur_box_idx * col_blocks + col_start] = t;
+    dev_mask[cur_box_idx * gridDim.x + col_start] = t;
   }
 }
 
-void _set_device(int device_id) {
-  int current_device;
-  CUDA_CHECK(cudaGetDevice(&current_device));
-  if (current_device == device_id) {
-    return;
-  }
-  // The call to cudaSetDevice must come before any calls to Get, which
-  // may perform initialization using the GPU.
-  CUDA_CHECK(cudaSetDevice(device_id));
-}
 
 void _nms(int* keep_out, int* num_out, const float* boxes_host, int boxes_num,
           int boxes_dim, float nms_overlap_thresh, int device_id) {
-  _set_device(device_id);
 
   float* boxes_dev = NULL;
   unsigned long long* mask_dev = NULL;
@@ -105,7 +93,7 @@ void _nms(int* keep_out, int* num_out, const float* boxes_host, int boxes_num,
                         cudaMemcpyHostToDevice));
 
   CUDA_CHECK(cudaMalloc(&mask_dev,
-                        boxes_num * col_blocks * sizeof(unsigned long long)));
+                        boxes_num * col_blocks * ULL_SIZE));
 
   dim3 blocks(DIVUP(boxes_num, threadsPerBlock),
               DIVUP(boxes_num, threadsPerBlock));
@@ -115,14 +103,15 @@ void _nms(int* keep_out, int* num_out, const float* boxes_host, int boxes_num,
                                   boxes_dev,
                                   mask_dev);
 
-  std::vector<unsigned long long> mask_host(boxes_num * col_blocks);
+  ULL *mask_host = (ULL*) malloc(boxes_num * col_blocks * ULL_SIZE);
   CUDA_CHECK(cudaMemcpy(&mask_host[0],
                         mask_dev,
-                        sizeof(unsigned long long) * boxes_num * col_blocks,
+                        ULL_SIZE * boxes_num * col_blocks,
                         cudaMemcpyDeviceToHost));
 
-  std::vector<unsigned long long> remv(col_blocks);
-  memset(&remv[0], 0, sizeof(unsigned long long) * col_blocks);
+
+  ULL *remv = (ULL*) malloc(col_blocks * ULL_SIZE);
+  memset(remv, 0, col_blocks * ULL_SIZE);
 
   int num_to_keep = 0;
   for (int i = 0; i < boxes_num; i++) {
