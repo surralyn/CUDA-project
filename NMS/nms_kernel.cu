@@ -67,7 +67,7 @@ void _nms(int* keep_out, int* num_out, const float* boxes_host, int boxes_num,
           float nms_overlap_thresh) {
 
   float* boxes_dev = NULL;
-  unsigned long long* mask_dev = NULL;
+  ULL* mask_dev = NULL;
 
   const int col_blocks = CEILDIV(boxes_num, threadsPerBlock);
 
@@ -98,7 +98,6 @@ void _nms(int* keep_out, int* num_out, const float* boxes_host, int boxes_num,
 
   ULL *remv = (ULL*) malloc(col_blocks * ULL_SIZE);
   memset(remv, 0, col_blocks * ULL_SIZE);
-
   int num_to_keep = 0;
   for (int i = 0; i < boxes_num; i++) {
     int nblock = i / threadsPerBlock;
@@ -106,7 +105,7 @@ void _nms(int* keep_out, int* num_out, const float* boxes_host, int boxes_num,
 
     if (!(remv[nblock] & (1ULL << inblock))) {
       keep_out[num_to_keep++] = i;
-      unsigned long long *p = &mask_host[0] + i * col_blocks;
+      ULL *p = mask_host + i * col_blocks;
       for (int j = nblock; j < col_blocks; j++) {
         remv[j] |= p[j];
       }
