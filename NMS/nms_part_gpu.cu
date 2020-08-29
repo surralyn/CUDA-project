@@ -26,7 +26,6 @@ __global__ void nms_iter(float *boxes_dev, float *area_dev, ULL *mask_dev, int n
     int idx = blockIdx.x * blockDim.x + threadIdx.x + 1, box_idx = 5*idx;
     if(idx < n){
         float IOU = get_iou_dev(boxes_dev, boxes_dev + box_idx, area_dev[0], area_dev[idx]);
-        idx--;
         if(IOU > th) atomicOr(mask_dev + idx / ULL_LEN, 1ULL << (idx % ULL_LEN));
     }
 }
@@ -102,7 +101,7 @@ __global__ void nms_full(float *boxes_dev, float *area_dev, ULL *mask_dev, int n
 }
 
 int nms_part_gpu(float* boxes_host, float th, int boxes_num){
-    int full_part = 6000;
+    int full_part = (1<<18);
     int block_size = 256;
     float *area_dev=NULL, *boxes_dev=NULL;
     int area_size = boxes_num * sizeof(float);
@@ -157,17 +156,17 @@ int nms_part_gpu(float* boxes_host, float th, int boxes_num){
         }
         
         k = start;
-        for(int i=0; i<boxes_num - 1; i++){
+        for(int i=1; i<boxes_num; i++){
             if(! (mask_host[i / ULL_LEN] & (1ULL << (i % ULL_LEN)))){
                 k++;
-                for(int j=0;j<4;j++) boxes_host[5*k + j] = boxes_host[5*(start + i + 1) + j];
+                for(int j=0;j<4;j++) boxes_host[5*k + j] = boxes_host[5*(start + i) + j];
             }
         }
 
         if(boxes_num > full_part){
             boxes_num = k - start;
             start++;
-        }else return k;
+        }else return k + 1;
     }
     
     return start;
