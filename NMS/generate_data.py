@@ -8,7 +8,7 @@ parser.add_argument("-e", "--expo", type=int, default=16)
 parser.add_argument("-b", "--bias", type=int, default=0)
 parser.add_argument("-th", "--threshold", type=float, default=0.1)
 parser.add_argument("--height", type=float, default=1080)
-parser.add_argument("--weight", type=float, default=1920)
+parser.add_argument("--width", type=float, default=1920)
 args = parser.parse_args()
 
 n = (1 << args.expo) + args.bias
@@ -16,7 +16,8 @@ FILE = open('./data/input.txt', 'w')
 FILE.write('%d %s\n' % (n, args.threshold))
 
 h = args.height
-w = args.weight
+w = args.width
+FILE.write('%d %d\n' % (h, w))
 
 scores = np.random.rand(n)
 scores = np.sort(scores)[::-1]

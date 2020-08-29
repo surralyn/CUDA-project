@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <time.h>
-#include "nms_part_gpu.cu"
+#include <cstring>
+#include "nms_gpu.cu"
 
 
 int main(){
@@ -9,7 +10,9 @@ int main(){
     int boxes_num;
     float* boxes_host, dt;
     float nms_overlap_thresh;
+    float h, w;
     fscanf(fp, "%d %f", &boxes_num, &nms_overlap_thresh);
+    fscanf(fp, "%f %f", &h, &w);
     boxes_host = (float*) malloc(5 * boxes_num * sizeof(float));
     for(int i=0;i<boxes_num;i++){
         for(int j=0;j<5;j++)fscanf(fp, "%f", &boxes_host[5*i + j]);
@@ -28,6 +31,16 @@ int main(){
 
     fclose(fp);
     HANDLE_ERROR( cudaEventDestroy( start ) );
- 	HANDLE_ERROR( cudaEventDestroy( stop ) );
+    HANDLE_ERROR( cudaEventDestroy( stop ) );
+    
+    fp = fopen("./data/output_gpu.txt", "w");
+    fprintf(fp, "%d\n", k);
+    for(int i=0;i<k;i++){
+        for(int j=0;j<5;j++){
+            fprintf(fp, "%9.4f    ", boxes_host[5 * i + j]);
+        }
+        fprintf(fp, "\n");
+    }
+
     return 0;
 }
