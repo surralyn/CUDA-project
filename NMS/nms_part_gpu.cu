@@ -1,10 +1,9 @@
 #include "../common/book.h"
 #define CEILDIV(m,n) (((m) + (n) - 1) / (n))
-typedef long long LL;
+#define ULL_LEN threadsPerBlock
 typedef unsigned long long ULL;
 const int ULL_SIZE = sizeof(ULL);
-const int ULL_LEN = 8*ULL_SIZE;
-#include "nms_kernel.cu"
+const int threadsPerBlock = 8*sizeof(ULL);
 
 
 __global__ void get_area(float *boxes_dev, float *area_dev, int n){
@@ -23,12 +22,12 @@ __device__ inline float get_iou_dev(float *a, float *b, float Sa, float Sb) {
     return inter / (Sa + Sb - inter);
 }
 
-__global__ void nms_iter(float *tar_box, float *tar_area, float *boxes_dev, float *area_dev, bool *mask_dev, int n, float th){
-    int idx = blockIdx.x * blockDim.x + threadIdx.x, box_idx = 5*idx;
+__global__ void nms_iter(float *boxes_dev, float *area_dev, ULL *mask_dev, int n, float th){
+    int idx = blockIdx.x * blockDim.x + threadIdx.x + 1, box_idx = 5*idx;
     if(idx < n){
-        float IOU = get_iou_dev(tar_box, boxes_dev + box_idx, tar_area[0], area_dev[idx]);
-        if(IOU > th) mask_dev[idx] = false;
-        else mask_dev[idx] = true;
+        float IOU = get_iou_dev(boxes_dev, boxes_dev + box_idx, area_dev[0], area_dev[idx]);
+        idx--;
+        if(IOU > th) atomicOr(mask_dev + idx / ULL_LEN, 1ULL << (idx % ULL_LEN));
     }
 }
 
@@ -103,11 +102,15 @@ __global__ void nms_full(float *boxes_dev, float *area_dev, ULL *mask_dev, int n
 }
 
 int nms_part_gpu(float* boxes_host, float th, int boxes_num){
+    int full_part = 6000;
+    int block_size = 256;
     float *area_dev=NULL, *boxes_dev=NULL;
-    int area_size = boxes_num * sizeof(float), box_size = 5 * area_size, mask_size = boxes_num* sizeof(bool);
-    int block_size = 256, full_part = 6000;
-    bool *mask_dev=NULL, *mask_host=NULL;
-    mask_host = (bool*) malloc(mask_size);
+    int area_size = boxes_num * sizeof(float);
+    int box_size = 5 * area_size;
+    int mask_piece_num = CEILDIV(boxes_num, ULL_LEN);
+    int mask_size = mask_piece_num * ULL_SIZE;
+    ULL *mask_dev=NULL, *mask_host=NULL;
+    mask_host = (ULL*) malloc(mask_size);
     HANDLE_ERROR(cudaMalloc((void **)&area_dev, area_size));
     HANDLE_ERROR(cudaMalloc((void **)&boxes_dev, box_size));
     HANDLE_ERROR(cudaMalloc((void **)&mask_dev, mask_size));
@@ -116,19 +119,18 @@ int nms_part_gpu(float* boxes_host, float th, int boxes_num){
     while(boxes_num){
         area_size = boxes_num * sizeof(float);
         box_size = 5 * area_size;
-        mask_size = boxes_num * sizeof(bool);
+        mask_piece_num = CEILDIV(boxes_num, ULL_LEN);
+        mask_size = mask_piece_num * ULL_SIZE;
 
         HANDLE_ERROR(cudaMemcpy(boxes_dev + 5*start, boxes_host + 5*start, box_size, cudaMemcpyHostToDevice));
         get_area<<<CEILDIV(boxes_num, block_size), block_size>>>(boxes_dev + 5*start, area_dev, boxes_num);
         if(boxes_num > full_part){
-            nms_iter<<<CEILDIV(boxes_num, block_size), block_size>>>
-                    (boxes_dev + 5*start, area_dev, boxes_dev + 5*(start + 1), area_dev + 1, 
-                    mask_dev, boxes_num - 1, th);
+            HANDLE_ERROR(cudaMemset(mask_dev, 0ULL, mask_size));
+            nms_iter<<<CEILDIV(boxes_num, block_size), block_size>>> (boxes_dev + 5*start, area_dev, mask_dev, boxes_num, th);
             HANDLE_ERROR(cudaMemcpy(mask_host, mask_dev, mask_size, cudaMemcpyDeviceToHost));
         }else{
             HANDLE_ERROR(cudaFree(mask_dev));
-            int col_blocks = CEILDIV(boxes_num, threadsPerBlock);
-            ULL mask_size_full = boxes_num * col_blocks * ULL_SIZE;
+            ULL mask_size_full = boxes_num * mask_piece_num * ULL_SIZE;
             ULL *mask_host_full = (ULL*) malloc(mask_size_full), *mask_dev_full=NULL;
             HANDLE_ERROR(cudaMalloc((void **)&mask_dev_full, mask_size_full));
             
@@ -139,32 +141,33 @@ int nms_part_gpu(float* boxes_host, float th, int boxes_num){
             
             HANDLE_ERROR(cudaMemcpy(mask_host_full, mask_dev_full, mask_size_full, cudaMemcpyDeviceToHost));
             
-            memset(mask_host, true, mask_size);
-            for(int i=0;i<boxes_num;i++){
-                if(mask_host[i]){
-                    for(int j=i+1;j<boxes_num;j++){
-                        int nblock = j / threadsPerBlock;
-                        int iblock = j % threadsPerBlock;
-                        ULL t = *(mask_host_full + i * col_blocks + nblock);
-                        if(t & (1ULL << iblock)) mask_host[j] = false;
+            memset(mask_host, 0ULL, mask_size);
+
+            for(int i = 0; i < boxes_num; i++){
+                int piece_idx = i / ULL_LEN;
+                int piece_bias = i % ULL_LEN;
+                bool b = ! (mask_host[piece_idx] & (1ULL << piece_bias));
+                if(i == 0 || b){
+                    ULL *p = mask_host_full + i * mask_piece_num;
+                    for (int j = piece_idx; j < mask_piece_num; j++){
+                        mask_host[j] |= p[j];
                     }
                 }
             }
-            mask_host++;
         }
         
         k = start;
-        for(int i=1; i<boxes_num; i++){
-            if(mask_host[i-1]){
+        for(int i=0; i<boxes_num - 1; i++){
+            if(! (mask_host[i / ULL_LEN] & (1ULL << (i % ULL_LEN)))){
                 k++;
-                for(int j=0;j<4;j++) boxes_host[5*k + j] = boxes_host[5*(start+i) +j];
+                for(int j=0;j<4;j++) boxes_host[5*k + j] = boxes_host[5*(start + i + 1) + j];
             }
         }
 
         if(boxes_num > full_part){
             boxes_num = k - start;
             start++;
-        }else return k + 1;
+        }else return k;
     }
     
     return start;
